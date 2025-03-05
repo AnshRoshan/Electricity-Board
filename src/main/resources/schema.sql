@@ -1,0 +1,103 @@
+-- Database schema for the Electric Utility Complaint Management System
+
+-- Create the database if it doesn't exist
+CREATE DATABASE IF NOT EXISTS complaints_db;
+
+-- Use the database
+USE complaints_db;
+
+-- Create the CUSTOMER table
+CREATE TABLE IF NOT EXISTS CUSTOMER (
+    CUSTOMERID VARCHAR(36) PRIMARY KEY,
+    NAME VARCHAR(100) NOT NULL,
+    EMAIL VARCHAR(100) NOT NULL,
+    PHONE VARCHAR(20),
+    ADDRESS VARCHAR(255),
+    CONSUMERNUMBER BIGINT UNIQUE NOT NULL,
+    PASSWORD VARCHAR(255) NOT NULL,
+    REGISTRATIONDATE DATE NOT NULL,
+    LASTACCESSDATE DATE
+);
+
+-- Create the COMPLAINT table
+CREATE TABLE IF NOT EXISTS COMPLAINT (
+    COMPLAINTID VARCHAR(36) PRIMARY KEY,
+    CONSUMERNUMBER BIGINT NOT NULL,
+    CUSTOMERID VARCHAR(36) NOT NULL,
+    COMPTYPE VARCHAR(50) NOT NULL,
+    CATEGORY VARCHAR(50) NOT NULL,
+    DESCRIPTION TEXT NOT NULL,
+    CONTACTMETHOD VARCHAR(20) NOT NULL,
+    CONTACT VARCHAR(100) NOT NULL,
+    STATUS VARCHAR(20) NOT NULL,
+    SUBMISSIONDATE DATE NOT NULL,
+    LASTUPDATE DATE NOT NULL,
+    RESOLUTIONDATE DATE,
+    RESOLUTIONDETAILS TEXT,
+    ESTIMATEDRESOLUTIONTIME INT,
+    NOTE TEXT,
+    FOREIGN KEY (CUSTOMERID) REFERENCES CUSTOMER(CUSTOMERID)
+);
+
+-- Create the ADMIN table
+CREATE TABLE IF NOT EXISTS ADMIN (
+    ADMINID VARCHAR(36) PRIMARY KEY,
+    USERNAME VARCHAR(50) UNIQUE NOT NULL,
+    PASSWORD VARCHAR(255) NOT NULL,
+    NAME VARCHAR(100) NOT NULL,
+    EMAIL VARCHAR(100) NOT NULL,
+    ROLE VARCHAR(20) NOT NULL,
+    LASTLOGIN DATE
+);
+
+-- Create the COMPLAINT_HISTORY table to track status changes
+CREATE TABLE IF NOT EXISTS COMPLAINT_HISTORY (
+    HISTORYID VARCHAR(36) PRIMARY KEY,
+    COMPLAINTID VARCHAR(36) NOT NULL,
+    PREVIOUSSTATUS VARCHAR(20) NOT NULL,
+    NEWSTATUS VARCHAR(20) NOT NULL,
+    CHANGEDBY VARCHAR(36) NOT NULL,
+    CHANGEDATE DATE NOT NULL,
+    COMMENTS TEXT,
+    FOREIGN KEY (COMPLAINTID) REFERENCES COMPLAINT(COMPLAINTID)
+);
+
+-- Create indexes for better performance
+CREATE INDEX IDX_COMPLAINT_CUSTOMERID ON COMPLAINT(CUSTOMERID);
+CREATE INDEX IDX_COMPLAINT_STATUS ON COMPLAINT(STATUS);
+CREATE INDEX IDX_COMPLAINT_SUBMISSIONDATE ON COMPLAINT(SUBMISSIONDATE);
+CREATE INDEX IDX_COMPLAINT_HISTORY_COMPLAINTID ON COMPLAINT_HISTORY(COMPLAINTID);
+
+-- Insert sample data for testing
+
+-- Sample customers
+INSERT INTO CUSTOMER (CUSTOMERID, NAME, EMAIL, PHONE, ADDRESS, CONSUMERNUMBER, PASSWORD, REGISTRATIONDATE)
+VALUES 
+('cust-001', 'John Doe', 'john.doe@example.com', '555-123-4567', '123 Main St, Anytown', 1001, 'password123', CURDATE()),
+('cust-002', 'Jane Smith', 'jane.smith@example.com', '555-987-6543', '456 Oak Ave, Somewhere', 1002, 'password123', CURDATE()),
+('cust-003', 'Robert Johnson', 'robert.j@example.com', '555-456-7890', '789 Pine Rd, Nowhere', 1003, 'password123', CURDATE());
+
+-- Sample complaints
+INSERT INTO COMPLAINT (COMPLAINTID, CONSUMERNUMBER, CUSTOMERID, COMPTYPE, CATEGORY, DESCRIPTION, CONTACTMETHOD, CONTACT, STATUS, SUBMISSIONDATE, LASTUPDATE, ESTIMATEDRESOLUTIONTIME)
+VALUES 
+('comp-001', 1001, 'cust-001', 'billing_issue', 'Overcharging', 'I was charged twice for my last month''s bill.', 'email', 'john.doe@example.com', 'PENDING', CURDATE(), CURDATE(), 24),
+('comp-002', 1002, 'cust-002', 'power_outage', 'Complete Outage', 'No power in my entire neighborhood since yesterday evening.', 'phone', '555-987-6543', 'IN PROGRESS', DATE_SUB(CURDATE(), INTERVAL 2 DAY), CURDATE(), 12),
+('comp-003', 1003, 'cust-003', 'meter_reading_issue', 'Incorrect Reading', 'My meter reading seems incorrect as my bill is much higher than usual.', 'email', 'robert.j@example.com', 'RESOLVED', DATE_SUB(CURDATE(), INTERVAL 7 DAY), DATE_SUB(CURDATE(), INTERVAL 1 DAY), 48);
+
+-- Update the resolved complaint with resolution details
+UPDATE COMPLAINT 
+SET RESOLUTIONDATE = DATE_SUB(CURDATE(), INTERVAL 1 DAY),
+    RESOLUTIONDETAILS = 'Technician verified the meter reading and found an error. The bill has been adjusted accordingly.'
+WHERE COMPLAINTID = 'comp-003';
+
+-- Sample admin
+INSERT INTO ADMIN (ADMINID, USERNAME, PASSWORD, NAME, EMAIL, ROLE, LASTLOGIN)
+VALUES 
+('admin-001', 'admin', 'admin123', 'Admin User', 'admin@powerpay.com', 'ADMIN', CURDATE());
+
+-- Sample complaint history
+INSERT INTO COMPLAINT_HISTORY (HISTORYID, COMPLAINTID, PREVIOUSSTATUS, NEWSTATUS, CHANGEDBY, CHANGEDATE, COMMENTS)
+VALUES 
+('hist-001', 'comp-002', 'PENDING', 'IN PROGRESS', 'admin-001', CURDATE(), 'Assigned to technical team'),
+('hist-002', 'comp-003', 'PENDING', 'IN PROGRESS', 'admin-001', DATE_SUB(CURDATE(), INTERVAL 3 DAY), 'Assigned to billing department'),
+('hist-003', 'comp-003', 'IN PROGRESS', 'RESOLVED', 'admin-001', DATE_SUB(CURDATE(), INTERVAL 1 DAY), 'Issue resolved, bill adjusted'); 

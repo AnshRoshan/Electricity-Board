@@ -1,164 +1,224 @@
 package com.anshroshan.electric.dao;
 
-import com.anshroshan.electric.model.Bill;
-import com.anshroshan.electric.util.DBConnectionUtil;
+import com.anshroshan.electric.models.Bill;
+import com.anshroshan.electric.util.DatabaseUtil;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class BillDAO {
 
-    public void addBill(Bill bill) throws Exception {
-        String sql = "INSERT INTO bills (bill_id, consumer_number, bill_number, billing_period, bill_date, due_date, disconnection_date, bill_amount, late_fee, status) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, bill.getBillId());
-            stmt.setString(2, bill.getConsumerNumber());
-            stmt.setString(3, bill.getBillNumber());
-            stmt.setString(4, bill.getBillingPeriod());
-            stmt.setString(5, bill.getBillDate());
-            stmt.setString(6, bill.getDueDate());
-            stmt.setString(7, bill.getDisconnectionDate());
-            stmt.setDouble(8, bill.getBillAmount());
-            stmt.setDouble(9, bill.getLateFee());
-            stmt.setString(10, bill.getStatus());
-            stmt.executeUpdate();
-        }
-    }
-
-    public Bill getBillByConsumerAndPeriod(String consumerId, String billingPeriod) throws Exception {
-        String sql = "SELECT * FROM bills WHERE consumer_number = ? AND billing_period = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, consumerId);
-            stmt.setString(2, billingPeriod);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractBillFromResultSet(rs);
+    public Bill getLatestUnpaidBill(String customerId) throws SQLException {
+        String query = "SELECT B.BILLID, B.CONSUMERNUMBER, B.AMOUNT, B.PERIOD, B.BILLDATE, " +
+                "B.DUEDATE, B.DISCONNECTION, B.LATEFEE, B.STATUS," +
+                "C.CONSUMERTYPE, C.STATUS AS CONSUMER_STATUS " +
+                "FROM BILL B JOIN CONSUMER C ON B.CONSUMERNUMBER = C.CONSUMERNUMBER " +
+                "WHERE C.CUSTOMERID = ? AND B.STATUS = 'Unpaid' " +
+                "ORDER BY B.BILLDATE DESC LIMIT 1";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, customerId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return new Bill(
+                            rs.getString("BILLID"),
+                            rs.getLong("CONSUMERNUMBER"),
+                            rs.getDouble("AMOUNT"),
+                            rs.getString("PERIOD"),
+                            rs.getDate("BILLDATE"),
+                            rs.getDate("DUEDATE"),
+                            rs.getDate("DISCONNECTION"),
+                            rs.getDouble("LATEFEE"),
+                            rs.getString("STATUS"),
+                            rs.getString("CONSUMERTYPE"),
+                            rs.getString("CONSUMER_STATUS"));
+                }
+                return null; // No unpaid bills found
             }
-            return null;
         }
     }
 
-    public List<Bill> getBillsByConsumerNumber(String consumerNumber) throws Exception {
-        String sql = "SELECT b.*, c.mobile_number, c.customer_type FROM bills b " +
-                     "JOIN consumers c ON b.consumer_number = c.consumer_id " +
-                     "WHERE b.consumer_number = ? ORDER BY b.bill_date DESC";
+    public List<Bill> getAllBills(String customerId) throws SQLException {
+        String query = "SELECT B.BILLID, B.CONSUMERNUMBER, B.AMOUNT, B.PERIOD, B.BILLDATE, " +
+                "B.DUEDATE, B.DISCONNECTION, B.LATEFEE, B.STATUS, " +
+                "C.CONSUMERTYPE, C.STATUS AS CONSUMER_STATUS " +
+                "FROM BILL B JOIN CONSUMER C ON B.CONSUMERNUMBER = C.CONSUMERNUMBER " +
+                "WHERE C.CUSTOMERID = ?";
         List<Bill> bills = new ArrayList<>();
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, consumerNumber);
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, customerId);
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    Bill bill = new Bill(
+                            rs.getString("BILLID"),
+                            rs.getLong("CONSUMERNUMBER"),
+                            rs.getDouble("AMOUNT"),
+                            rs.getString("PERIOD"),
+                            rs.getDate("BILLDATE"),
+                            rs.getDate("DUEDATE"),
+                            rs.getDate("DISCONNECTION"),
+                            rs.getDouble("LATEFEE"),
+                            rs.getString("STATUS"),
+                            rs.getString("CONSUMERTYPE"),
+                            rs.getString("CONSUMER_STATUS"));
+                    bills.add(bill);
+                    System.out.println(bill.toString());
+                }
+                return bills;
+            }
+        }
+    }
+
+    public List<Bill> getAllBillsByConsumerNumber(Long consumerNumber) throws SQLException {
+        String query = "SELECT B.BILLID, B.CONSUMERNUMBER, B.AMOUNT, B.PERIOD, B.BILLDATE, " +
+                "B.DUEDATE, B.DISCONNECTION, B.LATEFEE, B.STATUS, " +
+                "C.CONSUMERTYPE, C.STATUS AS CONSUMER_STATUS " +
+                "FROM BILL B JOIN CONSUMER C ON B.CONSUMERNUMBER = C.CONSUMERNUMBER " +
+                "WHERE B.CONSUMERNUMBER = ?";
+
+        List<Bill> bills = new ArrayList<>();
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setLong(1, consumerNumber);
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    Bill bill = new Bill(
+                            rs.getString("BILLID"),
+                            rs.getLong("CONSUMERNUMBER"),
+                            rs.getDouble("AMOUNT"),
+                            rs.getString("PERIOD"),
+                            rs.getDate("BILLDATE"),
+                            rs.getDate("DUEDATE"),
+                            rs.getDate("DISCONNECTION"),
+                            rs.getDouble("LATEFEE"),
+                            rs.getString("STATUS"),
+                            rs.getString("CONSUMERTYPE"),
+                            rs.getString("CONSUMER_STATUS"));
+                    bills.add(bill);
+                    // System.out.println(bill.toString()); // Optional for debugging
+                }
+            }
+        }
+        return bills;
+    }
+
+    public Bill getBillByBillId(String billId) throws SQLException {
+        String query = "SELECT B.BILLID, B.CONSUMERNUMBER, B.AMOUNT, B.PERIOD, B.BILLDATE, " +
+                "B.DUEDATE, B.DISCONNECTION, B.LATEFEE, B.STATUS, " +
+                "C.CONSUMERTYPE, C.STATUS AS CONSUMER_STATUS " +
+                "FROM BILL B JOIN CONSUMER C ON B.CONSUMERNUMBER = C.CONSUMERNUMBER " +
+                "WHERE B.BILLID = ?";
+
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, billId);
+                ResultSet rs = stmt.executeQuery();
+                while (rs.next()) {
+                    Bill bill = new Bill(
+                            rs.getString("BILLID"),
+                            rs.getLong("CONSUMERNUMBER"),
+                            rs.getDouble("AMOUNT"),
+                            rs.getString("PERIOD"),
+                            rs.getDate("BILLDATE"),
+                            rs.getDate("DUEDATE"),
+                            rs.getDate("DISCONNECTION"),
+                            rs.getDouble("LATEFEE"),
+                            rs.getString("STATUS"),
+                            rs.getString("CONSUMERTYPE"),
+                            rs.getString("CONSUMER_STATUS"));
+                    return bill;
+                }
+            }
+        }
+        return null;
+    }
+
+    // New method to update bill status
+    public boolean updateBillStatus(String billId, String status, Date paymentDate) throws SQLException {
+        String query = "UPDATE BILL SET STATUS = ?, PAYMENTDATE = ? WHERE BILLID = ?";
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, status); // Set the new status (e.g., "Paid")
+            stmt.setString(2, billId); // Identify the bill by BILLID
+            stmt.setDate(3, paymentDate); // Identify the bill by BILLID
+            int rowsAffected = stmt.executeUpdate();
+            if (rowsAffected == 0) {
+                System.out.println("No bill found with BILLID: " + billId);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // New method for bill history with date range
+    public List<Bill> getBillsByDateRange(String customerId, Date startDate, Date endDate) throws SQLException {
+        String query = "SELECT B.BILLID, B.CONSUMERNUMBER, B.AMOUNT, B.PERIOD, B.BILLDATE, " +
+                "B.DUEDATE, B.DISCONNECTION, B.LATEFEE, B.STATUS, " +
+                "C.CONSUMERTYPE, C.STATUS AS CONSUMERSTATUS, " +
+                "P.TRANSACTIONDATE AS PAYMENTDATE " +
+                "FROM BILL B " +
+                "LEFT JOIN PAYMENT P ON B.BILLID = ANY(P.BILLS) " +
+                "JOIN CONSUMER C ON B.CONSUMERNUMBER = C.CONSUMERNUMBER " +
+                "WHERE C.CUSTOMERID = ? AND B.BILLDATE BETWEEN ? AND ?";
+        List<Bill> bills = new ArrayList<>();
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            stmt.setString(1, customerId);
+            stmt.setDate(2, startDate);
+            stmt.setDate(3, endDate);
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
-                bills.add(extractBillFromResultSet(rs));
+                Bill bill = new Bill(
+                        rs.getString("BILLID"),
+                        rs.getLong("CONSUMERNUMBER"),
+                        rs.getDouble("AMOUNT"),
+                        rs.getString("PERIOD"),
+                        rs.getDate("BILLDATE"),
+                        rs.getDate("DUEDATE"),
+                        rs.getDate("DISCONNECTION"),
+                        rs.getDouble("LATEFEE"),
+                        rs.getString("STATUS"),
+                        rs.getString("CONSUMERTYPE"),
+                        rs.getString("CONSUMER_STATUS"),
+                        rs.getDate("PAYMENTDATE"));
+                bills.add(bill);
             }
             return bills;
         }
     }
 
-    public List<Bill> getBillsByIds(List<String> billIds) throws Exception {
-        String sql = "SELECT b.*, c.mobile_number, c.customer_type FROM bills b " +
-                     "JOIN consumers c ON b.consumer_number = c.consumer_id " +
-                     "WHERE b.bill_id IN (" + String.join(",", billIds.stream().map(id -> "?").toArray(String[]::new)) + ")";
-        List<Bill> bills = new ArrayList<>();
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            for (int i = 0; i < billIds.size(); i++) {
-                stmt.setString(i + 1, billIds.get(i));
-            }
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                bills.add(extractBillFromResultSet(rs));
-            }
-            return bills;
-        }
+    private String generateBillId() {
+        return "BILL-" + UUID.randomUUID().toString();
     }
 
-    public Bill getBillById(String billId) throws Exception {
-        String sql = "SELECT * FROM bills WHERE bill_id = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+    public String createBill(long consumerNumber, double amount, String period, Date billDate, Date dueDate,
+                             Date disconsumerDate, double lateFee) throws SQLException {
+        String query = "INSERT INTO BILL ( BILLID , CONSUMERNUMBER , AMOUNT , PERIOD , BILLDATE , DUEDATE , DISCONNECTION , LATEFEE , STATUS ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? )";
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+            String billId = generateBillId();
             stmt.setString(1, billId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractBillFromResultSet(rs);
+            stmt.setLong(2, consumerNumber);
+            stmt.setDouble(3, amount);
+            stmt.setString(4, period);
+            stmt.setDate(5, billDate);
+            stmt.setDate(6, dueDate);
+            stmt.setDate(7, disconsumerDate);
+            stmt.setDouble(8, lateFee);
+            stmt.setString(9, "Unpaid");
+            int rowsAffected = stmt.executeUpdate();
+            if (rowsAffected == 0) {
+                System.out.println("Failed to create bill");
+                return null;
             }
-            return null;
+            return billId;
         }
-    }
-
-    public void updateBill(Bill bill) throws Exception {
-        String sql = "UPDATE bills SET status = ?, payment_date = ? WHERE bill_id = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, bill.getStatus());
-            stmt.setString(2, bill.getPaymentDate());
-            stmt.setString(3, bill.getBillId());
-            stmt.executeUpdate();
-        }
-    }
-
-    public List<Bill> getBillHistory(String consumerNumber, String periodFilter, String statusFilter) throws Exception {
-        String sql = "SELECT b.*, p.transaction_date FROM bills b " +
-                     "LEFT JOIN payments p ON b.bill_id = ANY(string_to_array(p.bill_ids, ',')) " +
-                     "WHERE b.consumer_number = ?";
-        if (periodFilter != null && !periodFilter.isEmpty()) {
-            sql += " AND b.billing_period LIKE ?";
-        }
-        if (statusFilter != null && !statusFilter.isEmpty()) {
-            sql += " AND b.status = ?";
-        }
-        sql += " ORDER BY b.billing_period DESC";
-
-        List<Bill> bills = new ArrayList<>();
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, consumerNumber);
-            int paramIndex = 2;
-            if (periodFilter != null && !periodFilter.isEmpty()) {
-                stmt.setString(paramIndex++, "%" + periodFilter + "%");
-            }
-            if (statusFilter != null && !statusFilter.isEmpty()) {
-                stmt.setString(paramIndex, statusFilter);
-            }
-            ResultSet rs = stmt.executeQuery();
-            while (rs.next()) {
-                bills.add(extractBillFromResultSet(rs));
-            }
-            return bills;
-        }
-    }
-
-    public Bill getLatestBillByConsumerNumber(String consumerNumber) throws Exception {
-        String sql = "SELECT * FROM bills WHERE consumer_number = ? ORDER BY due_date DESC LIMIT 1";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, consumerNumber);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractBillFromResultSet(rs);
-            }
-            return null;
-        }
-    }
-
-    private Bill extractBillFromResultSet(ResultSet rs) throws Exception {
-        Bill bill = new Bill();
-        bill.setBillId(rs.getString("bill_id"));
-        bill.setConsumerNumber(rs.getString("consumer_number"));
-        bill.setBillNumber(rs.getString("bill_number"));
-        bill.setBillingPeriod(rs.getString("billing_period"));
-        bill.setBillDate(rs.getString("bill_date"));
-        bill.setDueDate(rs.getString("due_date"));
-        bill.setDisconnectionDate(rs.getString("disconnection_date"));
-        bill.setBillAmount(rs.getDouble("bill_amount"));
-        bill.setLateFee(rs.getDouble("late_fee"));
-        bill.setStatus(rs.getString("status"));
-        bill.setPaymentDate(rs.getString("payment_date"));
-        return bill;
     }
 }

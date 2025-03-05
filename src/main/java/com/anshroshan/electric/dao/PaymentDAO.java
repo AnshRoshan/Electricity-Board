@@ -1,26 +1,34 @@
 package com.anshroshan.electric.dao;
 
-import com.anshroshan.electric.model.Payment;
-import com.anshroshan.electric.util.DBConnectionUtil;
+import com.anshroshan.electric.models.Payment;
+import com.anshroshan.electric.util.DatabaseUtil;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.util.UUID;
 
 public class PaymentDAO {
 
-    public void savePayment(Payment payment) throws Exception {
-        String sql = "INSERT INTO payments (transaction_id, receipt_number, transaction_date, transaction_type, bill_ids, transaction_amount, transaction_status) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, payment.getTransactionId());
-            stmt.setString(2, payment.getReceiptNumber());
-            stmt.setString(3, payment.getTransactionDate());
-            stmt.setString(4, payment.getTransactionType());
-            stmt.setString(5, payment.getBillIds());
-            stmt.setDouble(6, payment.getTransactionAmount());
-            stmt.setString(7, payment.getTransactionStatus());
-            stmt.executeUpdate();
+    public void savePayment(Payment payment) throws SQLException {
+        String query = "INSERT INTO PAYMENT (TRANSACTIONID, TRANSACTIONDATE, AMOUNT, BILLS, STATUS, METHOD, CUSTOMERID) "
+                +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                String transactionId = payment.getTransactionId() != null ? payment.getTransactionId()
+                        : UUID.randomUUID().toString();
+                stmt.setString(1, transactionId);
+                stmt.setDate(2, payment.getTransactionDate());
+                stmt.setDouble(3, payment.getAmount());
+                stmt.setArray(4, conn.createArrayOf("TEXT", payment.getBills()));
+                stmt.setString(5, payment.getStatus());
+                stmt.setString(6, payment.getMethod());
+                stmt.setString(7, payment.getCustomerId());
+                stmt.executeUpdate();
+                payment.setTransactionId(transactionId); // Update the payment object
+            }
         }
     }
 }

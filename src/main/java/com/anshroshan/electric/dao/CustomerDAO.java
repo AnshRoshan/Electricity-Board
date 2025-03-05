@@ -1,95 +1,97 @@
 package com.anshroshan.electric.dao;
 
-import com.anshroshan.electric.model.Customer;
-import com.anshroshan.electric.util.DBConnectionUtil;
+import com.anshroshan.electric.models.Consumer;
+import com.anshroshan.electric.models.Customer;
+import com.anshroshan.electric.util.DatabaseUtil;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 
 public class CustomerDAO {
 
-    public void addCustomer(Customer customer) throws Exception {
-        String sql = "INSERT INTO customers (customer_id, full_name, address, consumer_number, mobile_number, email, customer_type, user_id, password) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, customer.getCustomerId());
-            stmt.setString(2, customer.getFullName());
-            stmt.setString(3, customer.getAddress());
-            stmt.setString(4, customer.getConsumerNumber());
-            stmt.setString(5, customer.getMobileNumber());
-            stmt.setString(6, customer.getEmail());
-            stmt.setString(7, customer.getCustomerType());
-            stmt.setString(8, customer.getUserId());
-            stmt.setString(9, customer.getPassword());
-            stmt.executeUpdate();
-        }
+    private final ConsumerDAO consumerDAO;
+    private final BillDAO billDAO;
+
+    public CustomerDAO() {
+        this.consumerDAO = new ConsumerDAO();
+        this.billDAO = new BillDAO();
     }
 
-    public Customer getCustomerByConsumerNumber(String consumerNumber) throws Exception {
-        String sql = "SELECT * FROM customers WHERE consumer_number = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, consumerNumber);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractCustomerFromResultSet(rs);
+    public boolean isEmailOrMobileExists(String email, long mobile) throws SQLException {
+        String query = "SELECT COUNT(*) FROM CUSTOMER WHERE EMAIL = ? OR MOBILE = ?";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, email);
+                stmt.setLong(2, mobile);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+                return false;
             }
-            return null;
         }
     }
 
-    public Customer getCustomerByEmail(String email) throws Exception {
-        String sql = "SELECT * FROM customers WHERE email = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, email);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractCustomerFromResultSet(rs);
+    public boolean isCustomerIdExists(String userId) throws SQLException {
+        String query = "SELECT COUNT(*) FROM CUSTOMER WHERE CUSTOMERID = ?";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, userId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+                return false;
             }
-            return null;
         }
     }
 
-    public Customer getCustomerByUserId(String userId) throws Exception {
-        String sql = "SELECT * FROM customers WHERE user_id = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, userId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractCustomerFromResultSet(rs);
+    public boolean addCustomer(Customer customer) throws SQLException {
+        String query = "INSERT INTO CUSTOMER (CUSTOMERID, TITLE, NAME, ADDRESS, MOBILE, EMAIL, PASSWORD) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null;
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, customer.getCustomerId());
+                stmt.setString(2, customer.getTitle());
+                stmt.setString(3, customer.getName());
+                stmt.setString(4, customer.getAddress());
+                stmt.setLong(5, customer.getMobile());
+                stmt.setString(6, customer.getEmail());
+                stmt.setString(7, customer.getPassword());
+                return stmt.executeUpdate() > 0;
             }
-            return null;
         }
     }
 
-    public Customer getCustomerById(String customerId) throws Exception {
-        String sql = "SELECT * FROM customers WHERE customer_id = ?";
-        try (Connection conn = DBConnectionUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, customerId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                return extractCustomerFromResultSet(rs);
+    public Customer getCustomerById(String customerId) throws SQLException {
+        customerId = customerId.trim();
+        String query = "SELECT * FROM CUSTOMER WHERE CUSTOMERID = ? ";
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            assert conn != null; // Ensure consumer is not null
+            try (PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setString(1, customerId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next()) {
+                    return new Customer(
+                            rs.getString("CUSTOMERID"),
+                            rs.getString("TITLE"),
+                            rs.getString("NAME"),
+                            rs.getString("ADDRESS"),
+                            rs.getLong("MOBILE"),
+                            rs.getString("EMAIL"),
+                            rs.getString("PASSWORD"),
+                            (ArrayList<Consumer>) consumerDAO.getConsumersByCustomerId(customerId),
+                            rs.getBoolean("ISADMIN")
+                    );
+                }
+                return null; // Return null if no customer is found
             }
-            return null;
         }
-    }
-
-    private Customer extractCustomerFromResultSet(ResultSet rs) throws Exception {
-        Customer customer = new Customer();
-        customer.setCustomerId(rs.getString("customer_id"));
-        customer.setFullName(rs.getString("full_name"));
-        customer.setAddress(rs.getString("address"));
-        customer.setConsumerNumber(rs.getString("consumer_number"));
-        customer.setMobileNumber(rs.getString("mobile_number"));
-        customer.setEmail(rs.getString("email"));
-        customer.setCustomerType(rs.getString("customer_type"));
-        customer.setUserId(rs.getString("user_id"));
-        customer.setPassword(rs.getString("password"));
-        return customer;
     }
 }
